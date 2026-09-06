@@ -108,3 +108,29 @@ def get_rainfall(lat: float, lng: float):
         "rain_1h_mm": data.get("rain", {}).get("1h", 0),
         "weather": data.get("weather", [{}])[0].get("description", "unknown")
     }
+from apscheduler.schedulers.background import BackgroundScheduler
+
+# Store the latest rainfall reading in memory
+latest_rainfall = {"rain_1h_mm": 0, "weather": "unknown"}
+
+def poll_rainfall():
+    global latest_rainfall
+    lat, lng = 22.5406, 88.339  # fixed reference point for now (your covered area)
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lng}&appid={OPENWEATHER_API_KEY}&units=metric"
+    response = requests.get(url)
+    data = response.json()
+    latest_rainfall = {
+        "rain_1h_mm": data.get("rain", {}).get("1h", 0),
+        "weather": data.get("weather", [{}])[0].get("description", "unknown")
+    }
+    print("Rainfall updated:", latest_rainfall)
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(poll_rainfall, 'interval', minutes=15)
+scheduler.start()
+
+poll_rainfall()  # run once immediately on startup, don't wait 15 min for the first data
+
+@app.get("/latest-rainfall")
+def get_latest_rainfall():
+    return latest_rainfall
