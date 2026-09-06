@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import math
+import os
+import requests
 
 app = FastAPI()
 
@@ -15,6 +17,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+OPENWEATHER_API_KEY = os.environ.get("OPENWEATHERMAP_API_KEY")
+
 # Load all three datasets once at startup
 with open("data/dense_drainage.geojson") as f:
     drainage_data = json.load(f)
@@ -27,7 +31,6 @@ with open("data/manholes.geojson") as f:
 
 
 def haversine(lat1, lng1, lat2, lng2):
-    """Distance in meters between two lat/lng points."""
     R = 6371000
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -37,7 +40,6 @@ def haversine(lat1, lng1, lat2, lng2):
 
 
 def count_nearby_points(data, lat, lng, radius_m):
-    """Count how many Point features fall within radius_m of (lat, lng)."""
     count = 0
     for feature in data["features"]:
         plng, plat = feature["geometry"]["coordinates"]
@@ -47,11 +49,9 @@ def count_nearby_points(data, lat, lng, radius_m):
 
 
 def find_nearby_pipes(lat, lng, radius_m):
-    """Return pipe segments with at least one endpoint within radius_m."""
     nearby = []
     for feature in drainage_data["features"]:
         coords = feature["geometry"]["coordinates"]
-        # Check distance to the pipe's first coordinate (simple approximation)
         plng, plat = coords[0]
         if haversine(lat, lng, plat, plng) <= radius_m:
             nearby.append({
@@ -65,7 +65,7 @@ def find_nearby_pipes(lat, lng, radius_m):
 
 @app.get("/risk-zones")
 def get_risk_zones(lat: float, lng: float):
-    radius = 500  # meters
+    radius = 500
 
     nearby_pipes = find_nearby_pipes(lat, lng, radius)
     gully_count = count_nearby_points(gully_data, lat, lng, radius)
@@ -73,7 +73,6 @@ def get_risk_zones(lat: float, lng: float):
 
     zones = []
     for pipe in nearby_pipes:
-        # Base risk from pipe diameter
         if pipe["diameter_mm"] <= 300:
             risk = "high"
         elif pipe["diameter_mm"] <= 600:
@@ -81,7 +80,6 @@ def get_risk_zones(lat: float, lng: float):
         else:
             risk = "low"
 
-        # Escalate risk if gully inlet coverage is sparse nearby
         if gully_count < 3 and risk == "moderate":
             risk = "high"
 
@@ -99,4 +97,15 @@ def get_risk_zones(lat: float, lng: float):
             "manholes_nearby": manhole_count,
             "radius_m": radius
         }
+    }
+
+
+@app.get("/rainfall")
+def get_rainfall(lat: float, lng: float):
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lng}&appid={OPENWEATHER_API_KEY}&units=metric"
+    response = requests.get(url)
+    data = response.json()
+    return {
+        "rain_1h_mm": data.get("rain", {}).get("1h", 0),
+        "weather": data.get("weather", [{}])[0].get("description", "unknown")
     }
