@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import json
 
 app = FastAPI()
 
@@ -31,4 +32,15 @@ def get_risk_zones(lat: float, lng: float):
                 "lng": lng - 0.01
             }
         ]
+    }
+
+@app.get("/debug-geojson")
+def debug_geojson():
+    with open("data/gully_inlets.geojson") as f:
+        gully = json.load(f)
+    with open("data/manholes.geojson") as f:
+        manholes = json.load(f)
+    return {
+        "gully_sample": gully["features"][0],
+        "manhole_sample": manholes["features"][0]
     }
