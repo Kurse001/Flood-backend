@@ -104,9 +104,7 @@ def get_rainfall(lat: float, lng: float):
     url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lng}&appid={OPENWEATHER_API_KEY}&units=metric"
     response = requests.get(url)
     data = response.json()
-    return data  # temporarily return everything raw, for debugging
-
-
-@app.get("/debug-key")
-def debug_key():
-    return {"key_seen": OPENWEATHER_API_KEY}
+    return {
+        "rain_1h_mm": data.get("rain", {}).get("1h", 0),
+        "weather": data.get("weather", [{}])[0].get("description", "unknown")
+    }
