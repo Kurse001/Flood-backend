@@ -106,4 +106,3 @@ def get_rainfall(lat: float, lng: float):
     response = requests.get(url)
     data = response.json()
     return data  # temporarily return everything raw, for debugging
-    }
