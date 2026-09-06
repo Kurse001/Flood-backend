@@ -17,8 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-OPENWEATHER_API_KEY = os.environ.get("OPENWEATHERMAP_API_KEY")
-
+OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY")
 # Load all three datasets once at startup
 with open("data/dense_drainage.geojson") as f:
     drainage_data = json.load(f)
