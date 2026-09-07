@@ -4,14 +4,10 @@ import json
 import math
 import os
 import requests
+from apscheduler.schedulers.background import BackgroundScheduler
 import firebase_admin
 from firebase_admin import credentials, firestore
 import json as json_lib
-
-cred_dict = json_lib.loads(os.environ.get("FIREBASE_CREDENTIALS_JSON"))
-cred = credentials.Certificate(cred_dict)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
 
 app = FastAPI()
 
@@ -26,7 +22,14 @@ app.add_middleware(
 )
 
 OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY")
-# Load all three datasets once at startup
+
+# --- Firebase setup ---
+cred_dict = json_lib.loads(os.environ.get("FIREBASE_CREDENTIALS_JSON"))
+cred = credentials.Certificate(cred_dict)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+# --- Load GeoJSON datasets once at startup ---
 with open("data/dense_drainage.geojson") as f:
     drainage_data = json.load(f)
 
@@ -73,7 +76,6 @@ def find_nearby_pipes(lat, lng, radius_m):
 @app.get("/risk-zones")
 def get_risk_zones(lat: float, lng: float):
     radius = 500
-
     nearby_pipes = find_nearby_pipes(lat, lng, radius)
     gully_count = count_nearby_points(gully_data, lat, lng, radius)
     manhole_count = count_nearby_points(manhole_data, lat, lng, radius)
@@ -116,14 +118,14 @@ def get_rainfall(lat: float, lng: float):
         "rain_1h_mm": data.get("rain", {}).get("1h", 0),
         "weather": data.get("weather", [{}])[0].get("description", "unknown")
     }
-from apscheduler.schedulers.background import BackgroundScheduler
 
-# Store the latest rainfall reading in memory
+
+# --- Scheduled rainfall polling ---
 latest_rainfall = {"rain_1h_mm": 0, "weather": "unknown"}
 
 def poll_rainfall():
     global latest_rainfall
-    lat, lng = 22.5406, 88.339  # fixed reference point for now (your covered area)
+    lat, lng = 22.5406, 88.339
     url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lng}&appid={OPENWEATHER_API_KEY}&units=metric"
     response = requests.get(url)
     data = response.json()
@@ -137,12 +139,14 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(poll_rainfall, 'interval', minutes=15)
 scheduler.start()
 
-poll_rainfall()  # run once immediately on startup, don't wait 15 min for the first data
+poll_rainfall()
 
 @app.get("/latest-rainfall")
 def get_latest_rainfall():
     return latest_rainfall
-    
+
+
+# --- Firestore test route ---
 @app.get("/test-firestore")
 def test_firestore():
     doc_ref = db.collection("test").document("hello")
