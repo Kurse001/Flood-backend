@@ -2,8 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 import json
 import math
 import os
@@ -11,6 +9,7 @@ import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 import firebase_admin
 from firebase_admin import credentials, firestore
+from firebase_admin import messaging as fcm_messaging
 import json as json_lib
 
 app = FastAPI()
@@ -51,6 +50,11 @@ def haversine(lat1, lng1, lat2, lng2):
     dlambda = math.radians(lng2 - lng1)
     a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
     return 2 * R * math.asin(math.sqrt(a))
+
+
+def is_within_zone(device_lat, device_lng, zone_lat, zone_lng, radius_m=500):
+    distance = haversine(device_lat, device_lng, zone_lat, zone_lng)
+    return distance <= radius_m
 
 
 def count_nearby_points(data, lat, lng, radius_m):
@@ -124,6 +128,35 @@ def get_rainfall(lat: float, lng: float):
     }
 
 
+def send_notification(token, zone):
+    message = fcm_messaging.Message(
+        notification=fcm_messaging.Notification(
+            title="Flood Risk Alert",
+            body=f"High flood risk ({zone['risk_level']}) detected near your location."
+        ),
+        token=token,
+    )
+    try:
+        fcm_messaging.send(message)
+        print(f"Notified device {token[:10]}...")
+    except Exception as e:
+        print(f"Failed to notify {token[:10]}...: {e}")
+
+
+def check_and_notify():
+    if latest_rainfall["rain_1h_mm"] <= 0:
+        return  # not raining, skip
+
+    devices = db.collection("devices").stream()
+    for device in devices:
+        d = device.to_dict()
+        zones = get_risk_zones(d["lat"], d["lng"])["zones"]
+        for zone in zones:
+            if zone["risk_level"] == "high" and is_within_zone(d["lat"], d["lng"], zone["lat"], zone["lng"]):
+                send_notification(device.id, zone)
+                break
+
+
 # --- Scheduled rainfall polling ---
 latest_rainfall = {"rain_1h_mm": 0, "weather": "unknown"}
 
@@ -138,6 +171,7 @@ def poll_rainfall():
         "weather": data.get("weather", [{}])[0].get("description", "unknown")
     }
     print("Rainfall updated:", latest_rainfall)
+    check_and_notify()
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(poll_rainfall, 'interval', minutes=15)
@@ -156,8 +190,6 @@ def test_firestore():
     doc_ref = db.collection("test").document("hello")
     doc_ref.set({"message": "Firestore is connected!"})
     return {"status": "success"}
-from pydantic import BaseModel
-from datetime import datetime
 
 
 class DeviceRegistration(BaseModel):
