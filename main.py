@@ -152,3 +152,21 @@ def test_firestore():
     doc_ref = db.collection("test").document("hello")
     doc_ref.set({"message": "Firestore is connected!"})
     return {"status": "success"}
+from pydantic import BaseModel
+from datetime import datetime
+
+
+class DeviceRegistration(BaseModel):
+    token: str
+    lat: float
+    lng: float
+
+
+@app.post("/register-device")
+async def register_device(payload: DeviceRegistration):
+    db.collection("devices").document(payload.token).set({
+        "lat": payload.lat,
+        "lng": payload.lng,
+        "updated_at": datetime.utcnow()
+    })
+    return {"status": "registered"}
