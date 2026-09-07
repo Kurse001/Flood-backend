@@ -144,17 +144,10 @@ def send_notification(token, zone):
 
 
 def check_and_notify():
-    if latest_rainfall["rain_1h_mm"] <= 0:
-        return  # not raining, skip
-
     devices = db.collection("devices").stream()
     for device in devices:
         d = device.to_dict()
-        zones = get_risk_zones(d["lat"], d["lng"])["zones"]
-        for zone in zones:
-            if zone["risk_level"] == "high" and is_within_zone(d["lat"], d["lng"], zone["lat"], zone["lng"]):
-                send_notification(device.id, zone)
-                break
+        send_notification(device.id, {"risk_level": "test"})
 
 
 # --- Scheduled rainfall polling ---
