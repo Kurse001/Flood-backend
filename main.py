@@ -4,6 +4,14 @@ import json
 import math
 import os
 import requests
+import firebase_admin
+from firebase_admin import credentials, firestore
+import json as json_lib
+
+cred_dict = json_lib.loads(os.environ.get("FIREBASE_CREDENTIALS_JSON"))
+cred = credentials.Certificate(cred_dict)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 app = FastAPI()
 
