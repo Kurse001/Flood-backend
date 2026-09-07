@@ -142,3 +142,9 @@ poll_rainfall()  # run once immediately on startup, don't wait 15 min for the fi
 @app.get("/latest-rainfall")
 def get_latest_rainfall():
     return latest_rainfall
+    
+@app.get("/test-firestore")
+def test_firestore():
+    doc_ref = db.collection("test").document("hello")
+    doc_ref.set({"message": "Firestore is connected!"})
+    return {"status": "success"}
