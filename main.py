@@ -94,7 +94,7 @@ def get_nearest_elevation(gdf, lat, lng, elevation_field="output_hh_1"):
             min_dist = dist
             nearest_elev = row.get(elevation_field)
     return float(nearest_elev) if nearest_elev is not None else None
-
+    
 ELEVATION_MIN = 0
 ELEVATION_MAX = 15
 
