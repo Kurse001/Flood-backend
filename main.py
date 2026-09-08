@@ -6,6 +6,7 @@ import json
 import math
 import os
 import requests
+import geopandas as gpd
 from apscheduler.schedulers.background import BackgroundScheduler
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -42,6 +43,10 @@ with open("data/gully_inlets.geojson") as f:
 with open("data/manholes.geojson") as f:
     manhole_data = json.load(f)
 
+# --- Load elevation-enriched datasets directly from GeoPackage ---
+manholes_gdf = gpd.read_file("data/kmc_manholes_with_elevation.gpkg")
+gully_gdf = gpd.read_file("data/kmc_gully_inlets_with elevation.gpkkg")
+drainage_elevation_gdf = gpd.readfile("data/drainage_with_elevation.gpkg")
 
 def haversine(lat1, lng1, lat2, lng2):
     R = 6371000
@@ -80,6 +85,26 @@ def find_nearby_pipes(lat, lng, radius_m):
             })
     return nearby
 
+def get_nearest_elevation(gdf, lat, lng, elevation_field="output_hh_1"):
+    min_dist = float("inf")
+    nearest_elev = None
+    for _, row in gdf.iterrows():
+        point_lng, point_lat = row.geometry.x, row.geometry.y
+        dist = haversine(lat, lng, point_lat, point_lng)
+        if dist < min_dist:
+            min_dist = dist
+            nearest_elev = row.get(elevation_field)
+    return float(nearest_elev) if nearest_elev is not None else None
+
+ELEVATION_MIN = 0
+ELEVATION_MAX = 15
+
+def elevation_risk_factor(elevation):
+    if elevation is None:
+        return 0
+    normalized = (ELEVATION_MAX - elevation) / (ELEVATION_MAX - ELEVATION_MIN)
+    return max(0, min(1, normalized))
+    
 
 @app.get("/risk-zones")
 def get_risk_zones(lat: float, lng: float):
@@ -100,9 +125,20 @@ def get_risk_zones(lat: float, lng: float):
         if gully_count < 3 and risk == "moderate":
             risk = "high"
 
+        # --- Elevation factor ---
+        elevation = get_nearest_elevation(manholes_gdf, pipe["lat"], pipe["lng"])
+        elev_factor = elevation_risk_factor(elevation)
+
+        if elev_factor > 0.7:
+            if risk == "moderate":
+                risk = "high"
+            elif risk == "low":
+                risk = "moderate"
+
         zones.append({
             "zone_id": pipe["pipe_id"],
             "risk_level": risk,
+            "elevation_m": elevation,
             "lat": pipe["lat"],
             "lng": pipe["lng"]
         })
@@ -115,7 +151,6 @@ def get_risk_zones(lat: float, lng: float):
             "radius_m": radius
         }
     }
-
 
 @app.get("/rainfall")
 def get_rainfall(lat: float, lng: float):
