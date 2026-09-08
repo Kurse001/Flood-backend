@@ -84,10 +84,12 @@ def find_nearby_pipes(lat, lng, radius_m):
             })
     return nearby
 
-def get_nearest_elevation(gdf, lat, lng, elevation_field="output_hh_1"):
+def get_nearest_elevation(gdf, lat, lng, elevation_field="output_hh_1", max_check=50):
     min_dist = float("inf")
     nearest_elev = None
-    for _, row in gdf.iterrows():
+    for i, (_, row) in enumerate(gdf.iterrows()):
+        if i >= max_check:
+            break
         point_lng, point_lat = row.geometry.x, row.geometry.y
         dist = haversine(lat, lng, point_lat, point_lng)
         if dist < min_dist:
