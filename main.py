@@ -45,7 +45,7 @@ with open("data/manholes.geojson") as f:
 
 # --- Load elevation-enriched datasets directly from GeoPackage ---
 manholes_gdf = gpd.read_file("data/kmc_manholes_with_elevation.gpkg")
-gully_gdf = gpd.read_file("data/kmc_gully_inlets_with elevation.gpkkg")
+gully_gdf = gpd.read_file("data/kmc_gully_inlets_with elevation.gpkg")
 drainage_elevation_gdf = gpd.readfile("data/drainage_with_elevation.gpkg")
 
 def haversine(lat1, lng1, lat2, lng2):
