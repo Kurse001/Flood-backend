@@ -49,3 +49,4 @@ websockets==17.1
 requests
 apscheduler
 firebase-admin
+geopandas
